@@ -1,0 +1,22 @@
+{
+  "title": "Users",
+  "columns": [
+    { "field": "id", "label": "ID", "type": "number", "sortable": true, "filter": { "type": "numberRange" } },
+    { "field": "name", "label": "Name", "type": "string", "sortable": true, "filter": { "type": "text" } },
+    { "field": "email", "label": "Email", "type": "string", "sortable": true, "filter": { "type": "text" } },
+    { "field": "role", "label": "Role", "type": "enum", "options": ["Admin", "User", "Manager"], "sortable": true, "filter": { "type": "select", "multiple": true } },
+    { "field": "active", "label": "Active", "type": "boolean", "sortable": true, "filter": { "type": "boolean" } },
+    { "field": "createdAt", "label": "Created At", "type": "date", "sortable": true, "filter": { "type": "dateRange" }, "format": "yyyy-MM-dd" }
+  ],
+  "rowActions": [
+    { "name": "view", "label": "View" },
+    { "name": "delete", "label": "Delete", "confirm": true }
+  ],
+  "bulkActions": [
+    { "name": "export", "label": "Export CSV" },
+    { "name": "deactivate", "label": "Deactivate", "confirm": true }
+  ],
+  "defaultPageSize": 10,
+  "allowedPageSizes": [10, 25, 50, 100],
+  "filterMode": "server"
+}
