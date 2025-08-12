@@ -239,12 +239,19 @@
         if (Array.isArray(this.state.schema.rowActions) && this.state.schema.rowActions.length > 0) {
           const td = document.createElement('td'); td.className = 'actions-cell';
           for (const action of this.state.schema.rowActions) {
-            const btn = document.createElement('button'); btn.className = 'btn btn-sm btn-outline-primary me-1'; btn.textContent = action.label;
-            btn.addEventListener('click', async () => {
-              if (action.confirm && !confirm(`Are you sure to ${action.name} #${row.id}?`)) return;
-              const result = await this._action(action.name, [row.id]);
-              if (action.name === 'delete' || action.name === 'deactivate') await this.refresh();
-              if (action.name === 'view') alert(JSON.stringify(result?.items?.[0] ?? row, null, 2));
+            const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-sm btn-outline-primary me-1'; btn.textContent = action.label;
+            btn.addEventListener('click', async (e) => {
+              e.preventDefault(); e.stopPropagation();
+              if (btn.dataset.busy === '1') return;
+              btn.dataset.busy = '1';
+              try {
+                if (action.confirm && !confirm(`Are you sure to ${action.name} #${row.id}?`)) return;
+                const result = await this._action(action.name, [row.id]);
+                if (action.name === 'delete' || action.name === 'deactivate') await this.refresh();
+                if (action.name === 'view') alert(JSON.stringify(result?.items?.[0] ?? row, null, 2));
+              } finally {
+                btn.dataset.busy = '0';
+              }
             });
             td.appendChild(btn);
           }
@@ -262,7 +269,7 @@
       const container = this.bulkActionsEl; container.innerHTML = '';
       const selected = Array.from(this.state.selectedIds); const info = document.createElement('div'); info.className = 'text-muted'; info.textContent = `${selected.length} selected`; container.appendChild(info);
       for (const action of this.state.schema.bulkActions || []) {
-        const btn = document.createElement('button'); btn.className = 'btn btn-sm btn-primary'; btn.textContent = action.label; btn.disabled = selected.length === 0;
+        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn btn-sm btn-primary'; btn.textContent = action.label; btn.disabled = selected.length === 0;
         btn.addEventListener('click', async () => {
           if (action.name === 'export') { this._exportCSV(selected); return; }
           if (action.confirm && !confirm(`Apply ${action.name} to ${selected.length} rows?`)) return;
