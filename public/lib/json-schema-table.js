@@ -5,9 +5,9 @@
       this.root = rootElement;
       this.options = Object.assign({
         schema: null,
-        schemaUrl: 'api/schema',
-        dataUrl: 'api/data',
-        actionsBaseUrl: 'api/actions',
+        schemaUrl: '/api/schema',
+        dataUrl: '/api/data',
+        actionsBaseUrl: '/api/actions',
         mode: 'server',
       }, options || {});
 
