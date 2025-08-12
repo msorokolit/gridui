@@ -1,0 +1,9 @@
+body { background: #f7f7f9; }
+.card { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.sticky-actions { position: sticky; bottom: 0; z-index: 100; background: #fff; }
+th.sortable { cursor: pointer; user-select: none; }
+th .sort-ind { font-size: 0.8rem; opacity: 0.6; margin-left: 4px; }
+.filter-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.filter-item label { font-size: 0.8rem; color: #555; margin-bottom: 4px; }
+.select-all-cell { width: 36px; }
+.actions-cell { white-space: nowrap; }
