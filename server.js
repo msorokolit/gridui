@@ -169,8 +169,22 @@ app.get('/api/data', (req, res) => {
     const page = parseInt(req.query.page || '1', 10);
     const pageSize = parseInt(req.query.pageSize || String(tableSchema.defaultPageSize || 10), 10);
 
+    // Support filtering only by specific ids
+    let idsFilter = null;
+    if (typeof req.query.ids === 'string' && req.query.ids.trim().length > 0) {
+      if (req.query.ids.trim().startsWith('[')) {
+        try { idsFilter = JSON.parse(req.query.ids).map(Number).filter(Number.isFinite); } catch (e) { idsFilter = null; }
+      } else {
+        idsFilter = req.query.ids.split(',').map(s => Number(s.trim())).filter(Number.isFinite);
+      }
+    }
+
     let rows = dataRows;
     rows = applyFilters(rows, filters, tableSchema);
+    if (Array.isArray(idsFilter) && idsFilter.length > 0) {
+      const idSet = new Set(idsFilter);
+      rows = rows.filter(r => idSet.has(Number(r.id)));
+    }
     rows = applySort(rows, sortBy, sortDir, tableSchema);
 
     if (all) {

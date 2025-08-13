@@ -30,6 +30,7 @@
         items: [],
         pageItems: [],
         selectedIds: new Set(),
+        selectedOnly: false,
       };
 
       this._buildDOM();
@@ -76,14 +77,19 @@
     async refresh(){
       const mode = this.state.mode;
       if (mode === 'server') {
-        const { items, page, pageSize, total, totalPages } = await this._getData({
+        const params = {
           filters: this.state.filters,
           sortBy: this.state.sortBy,
           sortDir: this.state.sortDir,
           page: this.state.page,
           pageSize: this.state.pageSize,
           mode
-        });
+        };
+        // If selectedOnly, request just selected ids
+        if (this.state.selectedOnly && this.state.selectedIds.size > 0) {
+          params.ids = Array.from(this.state.selectedIds);
+        }
+        const { items, page, pageSize, total, totalPages } = await this._getData(params);
         this.state.page = page;
         this.state.pageSize = pageSize;
         this.state.total = total;
@@ -109,19 +115,23 @@
           items = fetched;
         }
         this.state.items = items || [];
-        this._applyClientSideOps(this.state.items);
+        // If selectedOnly, filter to selected ids
+        const filtered = (this.state.selectedOnly && this.state.selectedIds.size > 0)
+          ? this.state.items.filter(r => this.state.selectedIds.has(r.id))
+          : this.state.items;
+        this._applyClientSideOps(filtered);
       }
       this._buildTable();
       this._renderPagination();
     }
 
-    async _getData({ filters, sortBy, sortDir, page, pageSize, mode }){
+    async _getData({ filters, sortBy, sortDir, page, pageSize, mode, ids }){
       const params = new URLSearchParams();
       if (filters && Object.keys(filters).length > 0) params.set('filters', JSON.stringify(filters));
       if (sortBy) params.set('sortBy', sortBy);
       if (sortDir) params.set('sortDir', sortDir);
-      if (mode === 'client') params.set('all', 'true');
-      else { params.set('page', String(page)); params.set('pageSize', String(pageSize)); }
+      if (ids && Array.isArray(ids) && ids.length > 0) params.set('ids', JSON.stringify(ids));
+      if (mode === 'client') params.set('all', 'true'); else { params.set('page', String(page)); params.set('pageSize', String(pageSize)); }
       const res = await fetch(`${this.options.dataUrl}?${params.toString()}`);
       return res.json();
     }
@@ -171,7 +181,25 @@
       this.pageSizeSel = document.createElement('select'); this.pageSizeSel.className = 'form-select form-select-sm'; this.pageSizeSel.style.width = '100px';
       right.append(label, this.pageSizeSel); footer.append(left, right);
       card.append(tableWrap, footer); container.appendChild(card);
-      this.bulkActionsEl = document.createElement('div'); this.bulkActionsEl.className = 'sticky-actions card card-body mt-3 d-flex flex-wrap gap-2'; container.appendChild(this.bulkActionsEl);
+      this.bulkActionsEl = document.createElement('div'); this.bulkActionsEl.className = 'sticky-actions card card-body mt-3 d-flex flex-wrap gap-2 align-items-center'; container.appendChild(this.bulkActionsEl);
+      // Inject selected-only toggle in actions area
+      this.selectedOnlyToggle = document.createElement('div');
+      this.selectedOnlyToggle.className = 'form-check form-switch ms-auto';
+      const chk = document.createElement('input');
+      chk.className = 'form-check-input';
+      chk.type = 'checkbox';
+      chk.id = `selected-only-${Math.random().toString(36).slice(2)}`;
+      const lbl = document.createElement('label');
+      lbl.className = 'form-check-label';
+      lbl.setAttribute('for', chk.id);
+      lbl.textContent = 'Show only selected';
+      chk.addEventListener('change', () => {
+        this.state.selectedOnly = chk.checked;
+        this.state.page = 1;
+        this.refresh();
+      });
+      this.selectedOnlyToggle.append(chk, lbl);
+      this.bulkActionsEl.appendChild(this.selectedOnlyToggle);
       this.root.appendChild(container);
     }
 
@@ -288,6 +316,18 @@
         });
         container.appendChild(btn);
       }
+      // Re-add the selected-only toggle
+      if (!this.selectedOnlyToggle) {
+        this.selectedOnlyToggle = document.createElement('div');
+        this.selectedOnlyToggle.className = 'form-check form-switch ms-auto';
+        const chk = document.createElement('input'); chk.className = 'form-check-input'; chk.type = 'checkbox'; chk.id = `selected-only-${Math.random().toString(36).slice(2)}`;
+        const lbl = document.createElement('label'); lbl.className = 'form-check-label'; lbl.setAttribute('for', chk.id); lbl.textContent = 'Show only selected';
+        chk.addEventListener('change', () => { this.state.selectedOnly = chk.checked; this.state.page = 1; this.refresh(); });
+        this.selectedOnlyToggle.append(chk, lbl);
+      }
+      const chk = this.selectedOnlyToggle.querySelector('input');
+      if (chk) chk.checked = this.state.selectedOnly;
+      container.appendChild(this.selectedOnlyToggle);
     }
 
     _populatePageSizeOptions(){
