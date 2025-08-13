@@ -11,8 +11,9 @@
         mode: 'server',
         // New hooks for static hosting / custom sources
         dataProvider: null, // async ({ mode, filters, sortBy, sortDir, page, pageSize }) => { items }
-        rowActionHandler: null, // async (action, ids) => any
-        bulkActionHandler: null, // async (action, ids) => any
+        rowActionHandler: null, // async (actionDef, ids, context) => any
+        bulkActionHandler: null, // async (actionDef, ids, context) => any
+        actionHandler: null, // async (actionDef, ids, context) => any (generic fallback)
         clientItems: null, // optional array of items when in client mode
       }, options || {});
 
@@ -126,12 +127,19 @@
     }
 
     async _action(actionDef, ids, context){
-      if (typeof this.options.rowActionHandler === 'function') {
-        try { return await this.options.rowActionHandler(actionDef, ids, context); } catch (e) { console.error(e); }
-      }
-      if (typeof this.options.bulkActionHandler === 'function') {
-        try { return await this.options.bulkActionHandler(actionDef, ids, context); } catch (e) { console.error(e); }
-      }
+      const scope = context?.scope;
+      try {
+        if (scope === 'row' && typeof this.options.rowActionHandler === 'function') {
+          return await this.options.rowActionHandler(actionDef, ids, context);
+        }
+        if (scope === 'bulk' && typeof this.options.bulkActionHandler === 'function') {
+          return await this.options.bulkActionHandler(actionDef, ids, context);
+        }
+        if (typeof this.options.actionHandler === 'function') {
+          return await this.options.actionHandler(actionDef, ids, context);
+        }
+      } catch (e) { console.error(e); }
+
       if (!this.options.actionsBaseUrl || !actionDef?.name) return { ok: true };
       const res = await fetch(`${this.options.actionsBaseUrl}/${actionDef.name}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, context })
@@ -244,12 +252,14 @@
               e.preventDefault(); e.stopPropagation();
               if (btn.dataset.busy === '1') return;
               btn.dataset.busy = '1';
+              btn.disabled = true;
               try {
                 if (action.confirm && !confirm(`Are you sure to ${action.name} #${row.id}?`)) return;
-                                 const result = await this._action(action, [row.id], { scope: 'row', row });
-                 if (result?.refresh) await this.refresh();
+                const result = await this._action(action, [row.id], { scope: 'row', row });
+                if (result?.refresh) await this.refresh();
               } finally {
                 btn.dataset.busy = '0';
+                btn.disabled = false;
               }
             });
             td.appendChild(btn);
