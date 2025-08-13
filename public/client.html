@@ -63,8 +63,8 @@
         schema,
         clientItems: items,
         actionsBaseUrl: null,
-        rowActionHandler: async (action, ids) => {
-          if (action === 'view') {
+        rowActionHandler: async (actionDef, ids, ctx) => {
+          if (actionDef?.name === 'view') {
             const found = items.find(r => r.id === ids[0]);
             alert(JSON.stringify(found, null, 2));
             return { ok: true };
