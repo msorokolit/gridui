@@ -125,16 +125,16 @@
       return res.json();
     }
 
-    async _action(action, ids){
+    async _action(actionDef, ids, context){
       if (typeof this.options.rowActionHandler === 'function') {
-        try { return await this.options.rowActionHandler(action, ids); } catch (e) { console.error(e); }
+        try { return await this.options.rowActionHandler(actionDef, ids, context); } catch (e) { console.error(e); }
       }
       if (typeof this.options.bulkActionHandler === 'function') {
-        try { return await this.options.bulkActionHandler(action, ids); } catch (e) { console.error(e); }
+        try { return await this.options.bulkActionHandler(actionDef, ids, context); } catch (e) { console.error(e); }
       }
-      if (!this.options.actionsBaseUrl) return { ok: true };
-      const res = await fetch(`${this.options.actionsBaseUrl}/${action}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids })
+      if (!this.options.actionsBaseUrl || !actionDef?.name) return { ok: true };
+      const res = await fetch(`${this.options.actionsBaseUrl}/${actionDef.name}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, context })
       });
       return res.json();
     }
@@ -246,9 +246,8 @@
               btn.dataset.busy = '1';
               try {
                 if (action.confirm && !confirm(`Are you sure to ${action.name} #${row.id}?`)) return;
-                const result = await this._action(action.name, [row.id]);
-                if (action.name === 'delete' || action.name === 'deactivate') await this.refresh();
-                if (action.name === 'view') alert(JSON.stringify(result?.items?.[0] ?? row, null, 2));
+                                 const result = await this._action(action, [row.id], { scope: 'row', row });
+                 if (result?.refresh) await this.refresh();
               } finally {
                 btn.dataset.busy = '0';
               }
@@ -273,8 +272,8 @@
         btn.addEventListener('click', async () => {
           if (action.name === 'export') { this._exportCSV(selected); return; }
           if (action.confirm && !confirm(`Apply ${action.name} to ${selected.length} rows?`)) return;
-          const result = await this._action(action.name, selected);
-          if (result?.ok) await this.refresh();
+          const result = await this._action(action, selected, { scope: 'bulk', selectedIds: selected });
+          if (result?.refresh) await this.refresh();
           this.state.selectedIds.clear(); this._renderBulkActions();
         });
         container.appendChild(btn);
