@@ -9,12 +9,12 @@
         dataUrl: '/api/data',
         actionsBaseUrl: '/api/actions',
         mode: 'server',
-        // New hooks for static hosting / custom sources
-        dataProvider: null, // async ({ mode, filters, sortBy, sortDir, page, pageSize }) => { items }
-        rowActionHandler: null, // async (actionDef, ids, context) => any
-        bulkActionHandler: null, // async (actionDef, ids, context) => any
-        actionHandler: null, // async (actionDef, ids, context) => any (generic fallback)
-        clientItems: null, // optional array of items when in client mode
+        dataProvider: null,
+        rowActionHandler: null,
+        bulkActionHandler: null,
+        actionHandler: null,
+        clientItems: null,
+        viewAllLimit: 10000 // max rows when selecting All
       }, options || {});
 
       this.state = {
@@ -31,6 +31,7 @@
         pageItems: [],
         selectedIds: new Set(),
         selectedOnly: false,
+        showAll: false
       };
 
       this._buildDOM();
@@ -85,9 +86,12 @@
           pageSize: this.state.pageSize,
           mode
         };
-        // If selectedOnly, request just selected ids
         if (this.state.selectedOnly && this.state.selectedIds.size > 0) {
           params.ids = Array.from(this.state.selectedIds);
+        }
+        if (this.state.showAll) {
+          params.all = true;
+          params.limit = this.options.viewAllLimit;
         }
         const { items, page, pageSize, total, totalPages } = await this._getData(params);
         this.state.page = page;
@@ -96,7 +100,6 @@
         this.state.totalPages = totalPages;
         this.state.pageItems = items;
       } else {
-        // client
         let items = null;
         if (typeof this.options.dataProvider === 'function') {
           const result = await this.options.dataProvider({
@@ -111,27 +114,37 @@
         } else if (Array.isArray(this.options.clientItems)) {
           items = this.options.clientItems;
         } else {
-          const { items: fetched } = await this._getData({ filters: {}, sortBy: null, sortDir: 'asc', page: 1, pageSize: 1, mode: 'client' });
+          const { items: fetched } = await this._getData({ filters: {}, sortBy: null, sortDir: 'asc', page: 1, pageSize: 1, mode: 'client', all: true, limit: this.options.viewAllLimit });
           items = fetched;
         }
         this.state.items = items || [];
-        // If selectedOnly, filter to selected ids
         const filtered = (this.state.selectedOnly && this.state.selectedIds.size > 0)
           ? this.state.items.filter(r => this.state.selectedIds.has(r.id))
           : this.state.items;
-        this._applyClientSideOps(filtered);
+        if (this.state.showAll) {
+          // Show all rows up to limit as a single page
+          const capped = filtered.slice(0, this.options.viewAllLimit);
+          this.state.total = capped.length;
+          this.state.totalPages = 1;
+          this.state.page = 1;
+          this.state.pageItems = this._clientApplySort(this._clientApplyFilters(capped));
+        } else {
+          this._applyClientSideOps(filtered);
+        }
       }
       this._buildTable();
       this._renderPagination();
     }
 
-    async _getData({ filters, sortBy, sortDir, page, pageSize, mode, ids }){
+    async _getData({ filters, sortBy, sortDir, page, pageSize, mode, ids, all, limit }){
       const params = new URLSearchParams();
       if (filters && Object.keys(filters).length > 0) params.set('filters', JSON.stringify(filters));
       if (sortBy) params.set('sortBy', sortBy);
       if (sortDir) params.set('sortDir', sortDir);
       if (ids && Array.isArray(ids) && ids.length > 0) params.set('ids', JSON.stringify(ids));
-      if (mode === 'client') params.set('all', 'true'); else { params.set('page', String(page)); params.set('pageSize', String(pageSize)); }
+      if (all) params.set('all', 'true');
+      if (limit) params.set('limit', String(limit));
+      if (!all && mode !== 'client') { params.set('page', String(page)); params.set('pageSize', String(pageSize)); }
       const res = await fetch(`${this.options.dataUrl}?${params.toString()}`);
       return res.json();
     }
@@ -298,7 +311,15 @@
       }
     }
 
-    _renderPagination(){ this.pageInfoEl.textContent = `Page ${this.state.page} of ${this.state.totalPages} — ${this.state.total} rows`; this.prevBtn.disabled = this.state.page <= 1; this.nextBtn.disabled = this.state.page >= this.state.totalPages; }
+    _renderPagination(){
+      if (this.state.showAll) {
+        this.pageInfoEl.textContent = `All — ${this.state.total} rows`;
+        this.prevBtn.disabled = true; this.nextBtn.disabled = true;
+        return;
+      }
+      this.pageInfoEl.textContent = `Page ${this.state.page} of ${this.state.totalPages} — ${this.state.total} rows`;
+      this.prevBtn.disabled = this.state.page <= 1; this.nextBtn.disabled = this.state.page >= this.state.totalPages;
+    }
 
     _wirePagination(){ this.prevBtn?.addEventListener('click', () => { if (this.state.page > 1) { this.state.page--; this.refresh(); } }); this.nextBtn?.addEventListener('click', () => { if (this.state.page < this.state.totalPages) { this.state.page++; this.refresh(); } }); }
 
@@ -334,7 +355,12 @@
       const sel = this.pageSizeSel; sel.innerHTML = '';
       const sizes = this.state.schema.allowedPageSizes || [10, 25, 50, 100];
       for (const s of sizes) { const o = document.createElement('option'); o.value = String(s); o.textContent = String(s); if (s === this.state.pageSize) o.selected = true; sel.appendChild(o); }
-      sel.onchange = () => { this.state.pageSize = Number(sel.value); this.state.page = 1; this.refresh(); };
+      const allOpt = document.createElement('option'); allOpt.value = 'ALL'; allOpt.textContent = 'All'; sel.appendChild(allOpt);
+      sel.onchange = () => {
+        const v = sel.value;
+        if (v === 'ALL') { this.state.showAll = true; this.state.page = 1; this.refresh(); }
+        else { this.state.showAll = false; this.state.pageSize = Number(v); this.state.page = 1; this.refresh(); }
+      };
     }
 
     _applyClientSideOps(allItems){

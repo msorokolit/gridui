@@ -168,6 +168,7 @@ app.get('/api/data', (req, res) => {
     const sortDir = req.query.sortDir === 'desc' ? 'desc' : 'asc';
     const page = parseInt(req.query.page || '1', 10);
     const pageSize = parseInt(req.query.pageSize || String(tableSchema.defaultPageSize || 10), 10);
+    const limit = parseInt(req.query.limit || '0', 10);
 
     // Support filtering only by specific ids
     let idsFilter = null;
@@ -188,7 +189,8 @@ app.get('/api/data', (req, res) => {
     rows = applySort(rows, sortBy, sortDir, tableSchema);
 
     if (all) {
-      return res.json({ items: rows, page: 1, pageSize: rows.length, total: rows.length, totalPages: 1 });
+      const capped = Number.isFinite(limit) && limit > 0 ? rows.slice(0, limit) : rows;
+      return res.json({ items: capped, page: 1, pageSize: capped.length, total: rows.length, totalPages: 1 });
     }
 
     const result = paginate(rows, page, pageSize);
